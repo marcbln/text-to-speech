@@ -44,6 +44,9 @@ tts 'Hello, World!' --provider openai --voice nova
 # Save to specific file without playing
 tts 'Hello, World!' --output my_speech.mp3 
 
+# Save and play
+paplay $(tts "Hello TTS")
+
 # Show help
 tts --help
 ```

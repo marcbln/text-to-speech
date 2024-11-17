@@ -3,11 +3,11 @@ from typing import Literal, Optional
 from pathlib import Path
 from enum import Enum
 import requests
+from slugify import slugify
 from gtts import gTTS
 from openai import OpenAI
 import typer
 from typing_extensions import Annotated
-import platform
 
 
 class Provider(str, Enum):
@@ -30,9 +30,20 @@ class TextToSpeech:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
 
+    def _get_filename(self, text: str, suffix: str = "") -> str:
+        """Generate a slugified filename from the text."""
+        # Take first 50 chars of text to avoid too long filenames
+        slugified = slugify(text[:50], max_length=50)
+        if suffix:
+            return f"{slugified}_{suffix}.mp3"
+        return f"{slugified}.mp3"
+
     def generate_google(self, text: str, lang: str = 'en',
-                        output_filename: str = "output.mp3") -> str:
+                        output_filename: Optional[str] = None) -> str:
         """Generate speech using Google TTS."""
+        if output_filename is None:
+            output_filename = self._get_filename(text, f"google_{lang}")
+        output_path = self.output_dir / output_filename
         output_path = self.output_dir / output_filename
         tts = gTTS(text=text, lang=lang)
         tts.save(str(output_path))
@@ -41,14 +52,16 @@ class TextToSpeech:
     def generate_openai(self, text: str,
                         voice: Voice = Voice.NOVA,
                         model: str = "tts-1",
-                        output_filename: str = "output.mp3") -> str:
+                        output_filename: Optional[str] = None) -> str:
         """Generate speech using OpenAI's TTS service."""
         if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
 
-        client = OpenAI()
+        if output_filename is None:
+            output_filename = self._get_filename(text, f"openai_{voice}")
         output_path = self.output_dir / output_filename
 
+        client = OpenAI()
         response = client.audio.speech.create(
             model=model,
             voice=voice,
@@ -58,20 +71,6 @@ class TextToSpeech:
         response.stream_to_file(str(output_path))
         return str(output_path)
 
-
-def play_audio(file_path: str):
-    """Play the audio file using the system's default audio player."""
-    try:
-        if platform.system() == 'Darwin':  # macOS
-            os.system(f'afplay "{file_path}"')
-        elif platform.system() == 'Linux':  # Linux
-            os.system(f'xdg-open "{file_path}"')
-        elif platform.system() == 'Windows':  # Windows
-            os.system(f'start "" "{file_path}"')
-        else:
-            typer.secho("Unsupported platform for audio playback", fg=typer.colors.YELLOW)
-    except Exception as e:
-        typer.secho(f"Error playing audio: {str(e)}", fg=typer.colors.RED)
 
 
 app = typer.Typer()
@@ -83,28 +82,22 @@ def speak(
         provider: Annotated[Provider, typer.Option(help="TTS provider to use")] = Provider.GOOGLE,
         output: Annotated[Optional[str], typer.Option(help="Output filename")] = None,
         voice: Annotated[Voice, typer.Option(help="Voice to use (OpenAI only)")] = Voice.NOVA,
-        lang: Annotated[str, typer.Option(help="Language code (Google only)")] = "en",
-        play: Annotated[bool, typer.Option(help="Play the audio after generation")] = True
+        lang: Annotated[str, typer.Option(help="Language code (Google only)")] = "en"
 ) -> None:
     """
     Convert text to speech using either Google TTS (free) or OpenAI TTS (requires API key).
     """
     tts = TextToSpeech()
 
-    if output is None:
-        output = f"output_{provider.value}.mp3"
+    # output filename will be auto-generated if None
 
     try:
         if provider == Provider.GOOGLE:
             output_path = tts.generate_google(text, lang=lang, output_filename=output)
-            typer.echo(f"Generated audio using Google TTS: {output_path}")
+            print(output_path)
         else:  # OpenAI
             output_path = tts.generate_openai(text, voice=voice, output_filename=output)
-            typer.echo(f"Generated audio using OpenAI TTS: {output_path}")
-
-        if play:
-            typer.echo("Playing audio...")
-            play_audio(output_path)
+            print(output_path)
 
     except Exception as e:
         typer.secho(f"Error: {str(e)}", fg=typer.colors.RED)

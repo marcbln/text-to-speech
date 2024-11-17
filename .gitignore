@@ -1,3 +1,6 @@
 .idea
+audio_output/
+__pycache__
+
 .aider*
 .env
