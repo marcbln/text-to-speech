@@ -1,6 +1,6 @@
 # Simple Text-to-Speech Generator
 
-A simple Python script for generating speech from text using multiple providers (Google TTS and OpenAI TTS).
+A simple Python script for generating speech mp3 from text using multiple providers (Google TTS and OpenAI TTS).
 
 ## About
 
@@ -85,4 +85,6 @@ export OPENAI_API_KEY='your-api-key'
 
 ## License
 
-MIT
+Licensed under the ALL License.
+
+
